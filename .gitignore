@@ -1,0 +1,7 @@
+docs/*
+src/.Rproj.user
+figures/*
+src/.Rhistory
+output/*
+.Rproj.user
+seq_data/*
