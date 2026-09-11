@@ -35,25 +35,6 @@ annot <- read_tsv(ref_folder %+% "gene_annotation.txt")
 go <- read_tsv(ref_folder %+% "go_annotation.txt")
 all_go_descriptions <- read_tsv(ref_folder %+% "go_description.txt")
 
-# # Создаем полную аннотацию: ген → GO термин
-# gene_to_go <- go %>%
-#   left_join(all_go_descriptions, by = c("go_term" = "go_id")) %>%
-#   filter(!is.na(go_description))  # Убираем NA
-# # Теперь у вас есть:
-# # gene_id → go_term (GO ID) → go_description (название термина) + ontology
-# # Для каждого GO термина получаем список генов
-# go_genes <- gene_to_go %>%
-#   group_by(go_description) %>%
-#   summarise(
-#     genes = list(unique(gene_id)),
-#     n_genes = n()
-#   ) %>%
-#   filter(n_genes >= 3)  # Минимальный размер
-# # Функция проверки, является ли термин A подмножеством B
-# is_subset <- function(genes_A, genes_B) {
-#   all(genes_A %in% genes_B)
-# }
-
 # 4. Вспомогательные функции ----------------------------------------
 # Функция конвертации имен генов
 convert_names <- function(vals, to_std = F){
@@ -177,42 +158,14 @@ for (i in c('pg_rg', 'pg_pd')) {
 }
 
 
-GO_norm%>%
-  # filter(
-  #   # 1. Минимальный размер термина (3-5 генов)
-  #   setSize >= 5,
-  #   
-  #   # 2. Максимальный размер (слишком общие термины)
-  #   setSize <= 200,
-  #   coverage*setSize>=4
-  # )%>%
-  mutate(padj=p.adjust(pvalue, method='BH'))%>%
-  filter(condition=='pg_pd')%>%
-  view()
+GO_all%>%
+  mutate(padj=p.adjust(pvalue,'BH'))%>%
+  dplyr::select(Description, condition,padj)%>%
+  right_join(GO_norm)%>%write_tsv(sum_folder%+%"GO_simple.txt")
 
-# 7. Сохранение результатов -----------------------------------------
-# Сохраняем результаты для 'pg_pd' с p-value < 0.01 (как в финальной версии)
-# GO_norm %>%
-#   filter(pvalue < 0.01, condition == 'pg_pd') %>%
-#   write_tsv(sum_folder %+% 'GOpgpd.txt')
-
-# 8. Создание графика (фильтрация и визуализация) --------------------
-# Загружаем сохраненные данные для pg_pd
-# GO_norm <- read_tsv(sum_folder %+% 'GOpgpd.txt')
-GO_norm%>%write_tsv(sum_folder%+%'GOsimple.txt')
-
-# # Функция для фильтрации избыточных GO терминов (по подмножеству генов)
-# genesets <- GO_norm$geneID %>% str_split('/')
-# 
-# # Оставляем только термины, которые НЕ являются надмножеством для других
-# to_keep <- sapply(1:nrow(GO_norm), function(i) {
-#   !any(sapply(1:nrow(GO_norm), function(j) {
-#     i != j &&
-#       all(genesets[[j]] %in% genesets[[i]]) &&  # j подмножество i
-#       length(genesets[[j]]) < length(genesets[[i]]) # j строго меньше
-#   }))
-# })
-# GO_norm <- GO_norm[to_keep, ]
+GO_all%>%
+  mutate(padj=p.adjust(pvalue,'BH'))%>%
+  write_tsv(sum_folder%+%'GO_no_correction.txt')
 
 GO_norm<-read_tsv(sum_folder%+%'GOsimple.txt')%>%
   filter(condition=='pg_pd')
@@ -223,10 +176,8 @@ GO_norm %>%
   pull(Description) %>%
   unique() -> lvls
 
-# Строим финальный график
-p <- GO_norm %>%
-  # mutate(pvalue = p.adjust(pvalue, method = 'BH')) %>% # В финальной версии этот шаг пропущен
-  # filter(pvalue < 0.01) %>% # В финальной версии фильтр по p-value не применяется на графике
+
+p<-to_pic %>%
   ggplot(aes(y = factor(Description, levels = rev(lvls)),
              x = NES,
              fill = ifelse(NES > 0, "Обогащен", "Обеднен"))) +
