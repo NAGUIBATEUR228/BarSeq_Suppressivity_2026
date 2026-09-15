@@ -216,6 +216,7 @@ write_csv(get(apr_name), logd%+%apr_name%+%'.csv')
 #####
 # log reads
 #####
+
 jc <- jcounts %>%
   filter(if_any(where(is.numeric), ~.x!=0))
 jc%>%
@@ -233,7 +234,7 @@ jc <- jc %>% mutate(across(!name, ~ (.x+1) / sum(.x+1) * n))
 
 
 jc%>%
-  mutate(across(!name,~ifelse(.x==0,NA,log(.x))))->data
+  mutate(across(!name,~ifelse(.x==0,NA,log2(.x))))->data
 write_csv(data,logd%+%'log_reads.csv')
 sum(unique(convert_names(c(noMtDNA2,noMtDNA1), to_std=T))%in%data$name)
 data<-read_csv(logd%+%'log_reads.csv')

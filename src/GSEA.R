@@ -26,7 +26,7 @@ jcounts <- read_tsv(sum_folder %+% 'jcounts_final.txt')
 jc <- jcounts
 
 # Нормализация по медиане общего количества ридов (как в оригинальном анализе)
-n = jc %>% dplyr::select(!name) %>% colSums %>% mean
+n = jc %>% dplyr::select(!name) %>% colSums %>% median
 jc <- jc %>% mutate(across(!name, ~ .x / sum(.x) * n))
 
 # Загрузка аннотаций
@@ -61,14 +61,29 @@ convert_names <- function(vals, to_std = F){
 no_mating <- go %>% filter(go_term == 'GO:0000747') %>% pull(gene_id)
 
 # Создаем таблицу `to_go` для анализа
-to_go <- jc %>%
-  # Оставляем гены с суммой ридов по репликам yd > 10 (как в последней версии)
-  filter(if_all(starts_with('yd'), ~ .x > 10)) %>%
+
+jc <- jcounts %>%
+  filter(if_any(where(is.numeric), ~.x!=0))
+jc%>%
+  dplyr::select(name, starts_with('yd'))%>%
+  pivot_longer(cols = !name, names_to = 'exp')%>%
+  group_by(name)%>%
+  mutate(s = sum(value))%>%
+  filter(s >= 100)%>%
+  transmute(name)%>%
+  ungroup()%>%
+  distinct()%>%
+  left_join(jc)->jc
+n = jc %>% dplyr::select(!name) %>% colSums %>% median
+jc <- jc %>% mutate(across(!name, ~ (.x+1) / sum(.x+1) * n))
+
+to_go <- data %>%
+  # filter(if_all(starts_with('yd'), ~ .x > 10)) %>%
   pivot_longer(!name, names_to = 'exp') %>%
   mutate(exp = str_sub(exp, 1, -2)) %>%
   group_by(name, exp) %>%
-  filter(value != 0) %>%
-  mutate(value = mean(log2(value + 1), na.rm = T)) %>%
+  # mutate(value=log2(value))%>%
+  mutate(value = mean(value, na.rm = T)) %>%
   ungroup() %>%
   distinct() %>%
   pivot_wider(names_from = 'exp')
@@ -161,11 +176,11 @@ for (i in c('pg_rg', 'pg_pd')) {
 GO_all%>%
   mutate(padj=p.adjust(pvalue,'BH'))%>%
   dplyr::select(Description, condition,padj)%>%
-  right_join(GO_norm)%>%write_tsv(sum_folder%+%"GO_simple.txt")
+  right_join(GO_norm)%>%write_tsv(sum_folder%+%"GO_simple_unified.txt")
 
 GO_all%>%
   mutate(padj=p.adjust(pvalue,'BH'))%>%
-  write_tsv(sum_folder%+%'GO_no_correction.txt')
+  write_tsv(sum_folder%+%'GO_no_correction_unified.txt')
 
 GO_norm<-read_tsv(sum_folder%+%'GOsimple.txt')%>%
   filter(condition=='pg_pd')
