@@ -19,7 +19,7 @@ ref_folder <- 'ref/'
 "%+%" <- function(...){
   paste0(...)
 }
-jcounts<-read_tsv(sum_folder%+%'jcounts_final.txt')
+jcounts<-read_csv(sum_folder%+%'jcounts_2026_article_suppr.csv')
 
 jc <- jc <- jcounts
 n = jc%>%dplyr::select(!name)%>%colSums%>%mean
@@ -218,7 +218,7 @@ f2_pg_rg<-filter(f2,exp=='pg_rg')
 
 # filter(!(convert_names(name)%in% no_mating))
 
-for(table in c('norm_pd')){#,'norm_yd',#'f2_pg_pd','f2_pg_rg'
+for(table in c('f2_pg_pd','f2_pg_rg')){#'norm_pd','norm_yd',#
   m<-'delta'
   pvalue<-'pvalue'
   to_volcano<-get(table) %>%
@@ -246,7 +246,7 @@ for(table in c('norm_pd')){#,'norm_yd',#'f2_pg_pd','f2_pg_rg'
       point_alpha = 0.5,
       # xlim = c(-2.5, 2.5),
       title = toupper(table)  # добавляем заголовок
-    )#+
+    )+
     # geom_point(
     #   data = to_volcano %>% filter(convert_names(name) %in% no_mating),
     #   aes(x = logfc, y = -log10(pval)),
@@ -256,27 +256,27 @@ for(table in c('norm_pd')){#,'norm_yd',#'f2_pg_pd','f2_pg_rg'
     #   shape = 21  # круг с обводкой
     # ) +
     
-    # geom_point(
-    #   data = to_volcano %>% filter(name %in% genes),
-    #   aes(x = logfc, y = -log10(pval)),
-    #   color = "yellow",
-    #   size = 3,
-    #   stroke = 1,
-    #   shape = 21  # круг с обводкой
-    # ) +
-    # ggrepel::geom_label_repel(
-    #   data = to_volcano %>% filter(name %in% genes),
-    #   aes(x = logfc, y = -log10(pval), label = name),
-    #   size = 3,
-    #   color = "black",
-    #   fill = "yellow",
-    #   point.padding = 0.3,
-    #   force=100,
-    #   direction = "both",
-    #   min.segment.length = 0
-    # )
+    geom_point(
+      data = to_volcano %>% filter(name %in% genes),
+      aes(x = logfc, y = -log10(pval)),
+      color = "yellow",
+      size = 3,
+      stroke = 1,
+      shape = 21  # круг с обводкой
+    ) +
+    ggrepel::geom_label_repel(
+      data = to_volcano %>% filter(name %in% genes),
+      aes(x = logfc, y = -log10(pval), label = name),
+      size = 3,
+      color = "black",
+      fill = "yellow",
+      point.padding = 0.3,
+      force=100,
+      direction = "both",
+      min.segment.length = 0
+    )
   
-  ggsave('figures/'%+%paste(table,'volcano','.png',sep='_'),width = 1280, height = 1280, units = 'px', scale=1.5)
+  ggsave('figures/'%+%paste(table,'volcano','.svg',sep='_'),width = 1280, height = 1280, units = 'px', scale=1.5)
 }
 
 res_cont<-read_tsv(sum_folder%+%'norm_pd.txt')
@@ -288,3 +288,5 @@ res_cont%>%
   transmute(name,delta,pvalue, gene_id=convert_names(name))%>%
   left_join(annot%>%select(gene_id,description),by='gene_id')%>%
   select(!gene_id)%>%write_tsv(sum_folder%+%'stats_hits.txt')
+
+

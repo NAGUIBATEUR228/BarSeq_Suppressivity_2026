@@ -22,7 +22,7 @@ ref_folder <- 'ref/'
 
 # 3. Загрузка данных ------------------------------------------------
 # Загружаем финальные нормализованные данные
-jcounts <- read_tsv(sum_folder %+% 'jcounts_final.txt')
+jcounts <- read_csv(sum_folder %+% 'jcounts_2026_article_suppr.csv')
 jc <- jcounts
 
 # Нормализация по медиане общего количества ридов (как в оригинальном анализе)
@@ -61,21 +61,24 @@ convert_names <- function(vals, to_std = F){
 no_mating <- go %>% filter(go_term == 'GO:0000747') %>% pull(gene_id)
 
 # Создаем таблицу `to_go` для анализа
+# jc <- jcounts %>%
+#   filter(if_any(where(is.numeric), ~.x!=0))
+# jc%>%
+#   dplyr::select(name, starts_with('yd'))%>%
+#   pivot_longer(cols = !name, names_to = 'exp')%>%
+#   group_by(name)%>%
+#   mutate(s = sum(value))%>%
+#   filter(s >= 100)%>%
+#   transmute(name)%>%
+#   ungroup()%>%
+#   distinct()%>%
+#   left_join(jc)->jc
+# n = jc %>% dplyr::select(!name) %>% colSums %>% median
+# jc <- jc %>% mutate(across(!name, ~ (.x+1) / sum(.x+1) * n))
+# jc%>%
+#   mutate(across(!name,~ifelse(.x==0,NA,log2(.x))))->data
 
-jc <- jcounts %>%
-  filter(if_any(where(is.numeric), ~.x!=0))
-jc%>%
-  dplyr::select(name, starts_with('yd'))%>%
-  pivot_longer(cols = !name, names_to = 'exp')%>%
-  group_by(name)%>%
-  mutate(s = sum(value))%>%
-  filter(s >= 100)%>%
-  transmute(name)%>%
-  ungroup()%>%
-  distinct()%>%
-  left_join(jc)->jc
-n = jc %>% dplyr::select(!name) %>% colSums %>% median
-jc <- jc %>% mutate(across(!name, ~ (.x+1) / sum(.x+1) * n))
+data<-read_csv(logd%+%'log_reads.csv')
 
 to_go <- data %>%
   # filter(if_all(starts_with('yd'), ~ .x > 10)) %>%
@@ -96,11 +99,15 @@ GO_norm <- tibble(pvalue = numeric(),
                   NES = numeric(), 
                   geneID = character(),
                   coverage = numeric(),
-                  setSize = numeric(), qvalue = numeric())
+                  setSize = numeric(), 
+                  qvalue = numeric())
+
+GO_all <- GO_norm
 
 # Запускаем GSEA для пар условий
 # Выполняем для 'pg_rg' и 'pg_pd'
-for (i in c('pg_rg', 'pg_pd')) {
+list_of_comparisons <- str_split_1('yg_yd,pg_pd,rg_rd,pd_rd,pg_rg,pd_yd,rd_yd,pg_yg,rg_yg',',')#c('pg_rg', 'pg_pd')
+for (i in list_of_comparisons) {
   condition <- i
   t <- str_split_1(condition, '_')[1]  # первое условие (например, 'pg')
   u <- str_split_1(condition, '_')[2]  # второе условие (например, 'rg')
@@ -121,19 +128,16 @@ for (i in c('pg_rg', 'pg_pd')) {
   gene_list <- sort(gene_list, decreasing = TRUE)
   
   # Запускаем GSEA
-  # Важно: pvalueCutoff = 1, pAdjustMethod = "none", как в истории
   norm_gsea2 <- clusterProfiler::gseGO(
     geneList = gene_list,
     OrgDb = org.Sc.sgd.db,
-    pvalueCutoff = 0.05,
+    pvalueCutoff = 1,
     keyType = "ENSEMBL",
-    ont = "BP",      # ← Оставляем только значимые
-    pAdjustMethod = "none",       # ← Сразу коррекция
-    minGSSize = 10,             # ← Минимальный размер термина
-    maxGSSize = 200,            # ← Максимальный размер термина
+    ont = "BP",
+    pAdjustMethod = "none"
   )
   
-  norm_gsea2@result$gene_count <- map_int(norm_gsea2@result$core_enrichment, ~ {
+   norm_gsea2@result$gene_count <- map_int(norm_gsea2@result$core_enrichment, ~ {
     if(is.na(.x)) return(0)
     str_count(.x, "/") + 1
   })
@@ -142,8 +146,15 @@ for (i in c('pg_rg', 'pg_pd')) {
   norm_gsea2@result$coverage <- (norm_gsea2@result$gene_count / 
                                    norm_gsea2@result$setSize) * 100
   
+  filtered_terms <- norm_gsea2@result[
+    norm_gsea2@result$pvalue < 0.05, 
+  ]
+  
+  norm_gsea <- norm_gsea2
+  norm_gsea@result <- filtered_terms
+  
   norm_gsea<-clusterProfiler::simplify(
-    norm_gsea2,  # Ваш результат gseGO
+    norm_gsea,  # Ваш результат gseGO
     cutoff = 0.7,  # Порог сходства (0.7 = умеренный)
     by = "pvalue",
     select_fun = min  
@@ -156,19 +167,21 @@ for (i in c('pg_rg', 'pg_pd')) {
       map(~ str_flatten(., collapse = '/')) %>% as.character()
     
     GO_norm <- norm_gsea@result %>%
-      # mutate(
-      #   # Количество генов из вашего списка в термине
-      #   gene_count = map_int(core_enrichment, ~ str_count(.x, "/") + 1),
-      #   
-      #   # Общее количество генов в GO термине
-      #   total_genes = setSize,
-      #   
-      #   # Насыщенность (доля)
-      #   coverage = gene_count / total_genes
-      # ) %>%
       dplyr::select(Description, pvalue, coverage, setSize, NES, qvalue) %>%
       mutate(condition = condition, geneID = gene_clust) %>%
       add_row(GO_norm, .)
+  }
+  
+  # Сохраняем результаты, если они есть
+  if ("core_enrichment" %in% names(norm_gsea2@result)) {
+    gene_clust <- norm_gsea2@result$core_enrichment %>%
+      map(~ convert_names(str_split(., '\\/') %>% unlist(), to_std = TRUE)) %>%
+      map(~ str_flatten(., collapse = '/')) %>% as.character()
+    
+    GO_all <- norm_gsea2@result %>%
+      dplyr::select(Description, pvalue, coverage, setSize, NES, qvalue) %>%
+      mutate(condition = condition, geneID = gene_clust) %>%
+      add_row(GO_all, .)
   }
 }
 
@@ -182,35 +195,4 @@ GO_all%>%
   mutate(padj=p.adjust(pvalue,'BH'))%>%
   write_tsv(sum_folder%+%'GO_no_correction_unified.txt')
 
-GO_norm<-read_tsv(sum_folder%+%'GOsimple.txt')%>%
-  filter(condition=='pg_pd')
-
-# Упорядочиваем термины по NES
-GO_norm %>%
-  arrange(desc(NES)) %>%
-  pull(Description) %>%
-  unique() -> lvls
-
-
-p<-to_pic %>%
-  ggplot(aes(y = factor(Description, levels = rev(lvls)),
-             x = NES,
-             fill = ifelse(NES > 0, "Обогащен", "Обеднен"))) +
-  geom_col(width = 0.7) +
-  labs(y = "GO-terms",
-       x = "NES (Normalized Enrichment Score)",
-       title = "GO-term enrichment") +
-  theme_bw() +
-  theme(axis.text.y = element_text(size = 8),
-        axis.title.y = element_blank(),
-        legend.position = "none",
-        plot.title = element_text(hjust = 0.5, face = "bold"),
-        plot.subtitle = element_text(hjust = 0.5)) +
-  scale_fill_manual(name = "Направление",
-                    values = c("Обогащен" = "steelblue", "Обеднен" = "salmon"),
-                    labels = c("Обогащен" = "Положительный NES", "Обеднен" = "Отрицательный NES")) +
-  coord_fixed(ratio = 0.5)
-
-# Сохраняем график
-ggsave('figures/GSEA_simple_pg_pd.png', plot = p, scale = 2.5)
-# ggsave('figures/GSEA_pg_pd.svg', plot = p, scale = 2.5)
+# GO_norm<-read_tsv(sum_folder%+%'GO_simple_unified.txt')

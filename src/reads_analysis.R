@@ -20,7 +20,7 @@ ref_folder <- 'ref/'
   paste0(...)
 }
 
-jcounts<-read_tsv(sum_folder%+%'jcounts_final.txt')
+jcounts<-read_tsv(sum_folder%+%'jcounts_2026_article_suppr.csv')
 
 jc <- jc <- jcounts
 n = jc%>%dplyr::select(!name)%>%colSums%>%mean
