@@ -27,11 +27,6 @@ excess <- c('_R', '_L00')
 
 seqfiles<-unlist(map(output_folder, ~paste(.x,dir(.x)%>%str_subset("output_count.csv$"),sep='')))
 
-# tablenames_short<-seqfiles%>%
-#   str_match_all(output_folder%+%"\\s*(.*?)\\s*_output_count.csv")%>%
-#   map_chr(function(x){x[,2]})%>%
-#   remove_excess(excess)
-
 tablenames<-seqfiles%>%
   str_match_all("\\s*(.*?)\\s*_output_count.csv")%>%
   map_chr(function(x){x[,2]})
@@ -264,23 +259,19 @@ sumtable<-sumtable%>%
   )%>%
   rowwise%>%
   mutate(
-    # --- итог по обеим веткам ---
+   
     barcoded_total = barcoded + barcoded_dm,
     assigned       = matched + blasted + matched_dm + blasted_dm,
     yield = assigned /total_reads,
     
-    # --- остатки по веткам ---
     not_matched    = barcoded    - matched    - blasted,
     not_matched_dm = barcoded_dm - matched_dm - blasted_dm,
     
-    # --- главные доли результата ---
     p_assigned_of_barcoded = assigned / barcoded_total,
     
-    # --- вклад dm ---
     dm_share_of_barcoded   = barcoded_dm / barcoded_total,
     dm_share_of_assigned   = (matched_dm + blasted_dm) / assigned,
     
-    # 
     p_ref_of_deep = final_unique_ref_10 / final_unique_10,
     p_deep_of_ref = final_unique_ref_10 / final_unique_ref,
     
@@ -289,4 +280,3 @@ sumtable<-sumtable%>%
 
 write_csv(sumtable,sum_folder%+%'sumtable.csv')
 
-# read_csv(sum_folder%+%'sumtable.csv')

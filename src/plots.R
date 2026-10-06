@@ -86,7 +86,7 @@ volcano_plot <- function(data,
                          x_col,
                          y_col,
                          xlabel='effect',
-                         ylabel=expression(-Log[10] ~ (P[adj])),#expression(Log[2] ~ FC)
+                         ylabel=expression(-Log[10] ~ (P[adj])),
                          gene_col = "name",
                          center = NULL,
                          FCcutoff = 0.2,
@@ -216,14 +216,10 @@ f2<-read_csv(logd%+%'f2.csv')
 f2_pg_pd<-filter(f2,exp=='pg_pd')
 f2_pg_rg<-filter(f2,exp=='pg_rg')
 
-# filter(!(convert_names(name)%in% no_mating))
-
 for(table in c('f2_pg_pd','f2_pg_rg')){#'norm_pd','norm_yd',#
   m<-'delta'
   pvalue<-'pvalue'
   to_volcano<-get(table) %>%
-    # mutate(!!sym(m):=100*!!sym(m))%>%
-    # filter(exp==i)%>%
     transmute(
       name = name,
       logfc = !!sym(m),
@@ -236,7 +232,7 @@ for(table in c('f2_pg_pd','f2_pg_rg')){#'norm_pd','norm_yd',#
     volcano_plot(
       data = .,
       ylabel=expression(-Log[10] ~ (P[value])),
-      xlabel = expression(Log[2] ~ (italic(FoldChange))),#expression(frac(Delta*mu - median(Delta*mu), median(Delta*mu))~", %"),
+      xlabel = expression(Log[2] ~ (italic(FoldChange))),
       x_col = "logfc",
       y_col = "pval",
       center = mean(to_volcano$logfc, na.rm = TRUE),#0
@@ -244,9 +240,11 @@ for(table in c('f2_pg_pd','f2_pg_rg')){#'norm_pd','norm_yd',#
       pCutoff = 0.05,
       pointSize = 2,
       point_alpha = 0.5,
-      # xlim = c(-2.5, 2.5),
-      title = toupper(table)  # добавляем заголовок
+      title = toupper(table)
     )+
+    
+    #you can highlight sterile strains to check if normalisation works:
+    
     # geom_point(
     #   data = to_volcano %>% filter(convert_names(name) %in% no_mating),
     #   aes(x = logfc, y = -log10(pval)),
@@ -262,7 +260,7 @@ for(table in c('f2_pg_pd','f2_pg_rg')){#'norm_pd','norm_yd',#
       color = "yellow",
       size = 3,
       stroke = 1,
-      shape = 21  # круг с обводкой
+      shape = 21  
     ) +
     ggrepel::geom_label_repel(
       data = to_volcano %>% filter(name %in% genes),

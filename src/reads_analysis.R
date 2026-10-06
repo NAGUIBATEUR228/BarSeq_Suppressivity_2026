@@ -64,17 +64,17 @@ convert_names <- function(vals, to_std = F){
 }
 
 t_test <- function(mean.x, mean.y, sigma.x, sigma.y, n.x, n.y) {
-  # Стандартная ошибка разности средних (для неравных дисперсий)
+  # SE for mean difference for unequal dispersions
   se <- sqrt(sigma.x^2 / n.x + sigma.y^2 / n.y)
   
-  # t-статистика
+  # t-stat
   t <- (mean.x - mean.y) / se
   
-  # Степени свободы (Уэлча-Саттертуэйта)
+  # df (Welch-Satterthwaite)
   df <- (sigma.x^2 / n.x + sigma.y^2 / n.y)^2 / 
     ((sigma.x^2 / n.x)^2 / (n.x - 1) + (sigma.y^2 / n.y)^2 / (n.y - 1))
   
-  # Двустороннее p-value
+  # two-sided p-value
   p <- 2 * pt(abs(t), df, lower.tail = FALSE)
   
   return(p)
@@ -88,7 +88,6 @@ reads_z_test <- function(data, t, c){
            exp = str_sub(exp,1,-2))%>%
     mutate(exp = exp%>%factor(levels=c(t,c)))%>%
     arrange(name,exp,rep)%>%
-    # filter(-Inf != value)%>%
     group_by(name, exp)%>%
     mutate(m = mean(value, na.rm=T), s=sd(value,na.rm=T))%>%
     na.omit%>%
@@ -100,7 +99,7 @@ reads_z_test <- function(data, t, c){
     ungroup%>%
     pivot_wider(
       names_from = exp,
-      values_from = c(m, n, s),  # разделяем средние и размеры
+      values_from = c(m, n, s),  
       names_sep = "_"
     )  %>%
     mutate(delta=!!sym("m_"%+%t)-!!sym("m_"%+%c),
@@ -172,7 +171,7 @@ no_mating<-go%>%filter(go_term=='GO:0000747')%>%pull(gene_id)
 
 names(jcounts)[-1]%>%str_sub(1,-2)%>%unique
 conds<-c('pd','pg','rd','rg','yd','yg')
-# cond_pairs<-str_split_1("pg_pd,yg_yd,rg_rd,pd_rd,pg_rg,pd_yd,pg_yg,rd_yd,rg_yg",",")
+
 cond_pairs<-str_split_1("pg_pd,pg_rg",",")
 
 logd <- 'filter/'
@@ -239,13 +238,12 @@ write_csv(data,logd%+%'log_reads.csv')
 sum(unique(convert_names(c(noMtDNA2,noMtDNA1), to_std=T))%in%data$name)
 data<-read_csv(logd%+%'log_reads.csv')
 
+# log_reads is also used for GSEA analysis
 
 #####
 # second approach
 #####
 apr_name <- 'f2'
-
-#'data' is already recorded
 
 for (pair in cond_pairs){
   t<-str_split_1(pair,"_")[1]
@@ -277,14 +275,13 @@ cond<-c("pg", "rg", "pd", "rd")
 
 cond_numbers <- setNames(1:4, cond)
 
-res_cont<-data %>% #mutate(across(!name,~log(exp(.x)+1)))%>%
+res_cont<-data %>% 
   pivot_longer(cols = -name, names_to = "variable", values_to = "value") %>%
   mutate(
-    condition = str_sub(variable, 1, 2),   # первые два символа: pd, pg, rd, rg
-    rep = str_sub(variable, 3)              # остальное — номер реплики
+    condition = str_sub(variable, 1, 2),   # conditions: pd, pg, rd, rg
+    rep = str_sub(variable, 3)              # rep number
   ) %>%
-  filter(condition %in% cond) %>%   # оставляем только нужные условия
-  # filter(is.finite(value)) %>%                            # убираем -Inf, NA и т.п.
+  filter(condition %in% cond) %>%   
   left_join(jcounts%>%pivot_longer(!name, names_to = "variable", values_to = "reads"))%>%
   group_by(name)%>%
   filter(sum(reads)>50)%>%
@@ -304,24 +301,24 @@ res_cont<-data %>% #mutate(across(!name,~log(exp(.x)+1)))%>%
     names_sep = "_"
   ) %>%
   mutate(
-    # разности для супрессивного и нормального фона
+    # two defferences
     diff_t = mean_val_1 - mean_val_2,
     diff_u = mean_val_3 - mean_val_4,
-    # интересующая разность разностей
+    # difference of differences
     delta = diff_t - diff_u,
     
-    # дисперсии разностей (квадраты стандартных ошибок)
+    # two dispersions
     var_t = sd_val_1^2 / n_val_1 + sd_val_2^2 / n_val_2,
     var_u = sd_val_3^2 / n_val_3 + sd_val_4^2 / n_val_4,
-    # стандартная ошибка для delta
+    # SE for delta
     SE_delta = sqrt(var_t + var_u),
     
-    # t-статистика
+    # t-stat
     t_stat = delta / SE_delta,
     
-    # степени свободы по формуле Саттертуэйта для линейной комбинации четырёх средних
-    # var_contrib_i = (коэффициент)^2 * (sd_i^2 / n_i)
-    # коэффициенты: pg: +1, pd: -1, rg: -1, rd: +1
+    # df for linear combination of 4 means
+    # var_contrib_i = (coef)^2 * (sd_i^2 / n_i)
+    # coefs: pg: +1, pd: -1, rg: -1, rd: +1
     var_contrib_1 = (sd_val_1^2 / n_val_1),
     var_contrib_2 = (sd_val_2^2 / n_val_2),
     var_contrib_3 = (sd_val_3^2 / n_val_3),
@@ -334,7 +331,7 @@ res_cont<-data %>% #mutate(across(!name,~log(exp(.x)+1)))%>%
         (var_contrib_4^2 / (n_val_4 - 1))
     ),
     
-    # двустороннее p-value
+    # two-sided p-value
     pvalue = 2 * pt(abs(t_stat), df, lower.tail = FALSE)
   ) %>%
   dplyr::select(name, delta, SE_delta, t_stat, df, pvalue) %>%

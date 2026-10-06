@@ -44,12 +44,12 @@ sumblastdm = pd.DataFrame({
 })
 
 files = list()
-for x,y,z in os.walk(path):#os.listdir(path):  # list of directory and file names
+for x,y,z in os.walk(path): # list of directory and file names
     for i in z:
         file = os.path.join(x, i)
         if file.endswith('not_matched.csv') or file.endswith('not_matched_dm.csv'):
             files.append(file)
-# dirs.append('')
+
 filelist = '\n'.join(files)
 print(f"{datetime.now():%d.%m.%Y %H:%M:%S}\n{filelist}")
 

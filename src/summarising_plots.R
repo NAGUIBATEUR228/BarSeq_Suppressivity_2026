@@ -16,7 +16,7 @@ ref_folder <- 'ref/'
 fig_folder <- 'figures/'
 dir.create(fig_folder, showWarnings = FALSE)
 
-# ------------------------------------------------------------------ read
+# -------- read
 sumtable <- read_csv(sum_folder %+% 'sumtable.csv', show_col_types = FALSE)
 
 
@@ -49,13 +49,12 @@ bar_reads <- sumtable %>%
                         levels = c('other', 'barcoded_all'),
                         labels = c('not barcoded', 'barcoded')))
 
-# порядок образцов: по условию, внутри — по реплике
 
 combos <- expand.grid(
-  Var4 = c(" F", " R"),        # меняется медленнее всех
+  Var4 = c(" F", " R"),        
   Var2 = " rep ",
   Var3 = c(1, 2, 3),
-  Var1 = unname(condition_map), # меняется быстрее всех
+  Var1 = unname(condition_map),
   stringsAsFactors = FALSE
 )
 
@@ -102,7 +101,7 @@ repeat_cor <- cor_mat %>%
   mutate(condition_a = str_sub(sample_a, 1, 2),
          condition_b = str_sub(sample_b, 1, 2)) %>%
   filter(condition_a == condition_b,
-         sample_a < sample_b) %>%          # только уникальные пары
+         sample_a < sample_b) %>%          
   transmute(condition = condition_a,
             metric = 'repeat correlation (Spearman)',
             value = rho)
@@ -177,8 +176,6 @@ p_orf_rep <- ggplot(orf_per_rep, aes(x = n_detected, y = condition, fill = condi
   theme_bw(base_size = 14) +
   theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
         legend.position = 'none')
-# +
-#   scale_x_continuous(labels=function(x)paste0(x/1e6,'M'))
 
 # (b) detected in >= 2 of 3 replicates
 orf_consensus <- jcounts_rep %>%

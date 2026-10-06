@@ -66,12 +66,12 @@ sumdm = pd.DataFrame({
 })
 
 files = list()
-for x,y,z in os.walk(path):#os.listdir(path):  # list of directory and file names
+for x,y,z in os.walk(path):  # list of directory and file names
     for i in z:
         file = os.path.join(x, i)
         if file.endswith('not_barcoded_raw_qual_count.csv'):
             files.append(file)
-# dirs.append('')
+
 filelist = '\n'.join(files)
 print(f"{datetime.now():%d.%m.%Y %H:%M:%S}\n{filelist}")  # directories with fastq files
 
@@ -81,8 +81,7 @@ for j in files:
 
     print(f'{datetime.now():%d.%m.%Y %H:%M:%S} {j}') 
     nb = pd.read_csv(j)  # not_barcoded table
-    # print(len(nb[~nb['barcode'].isin(seqs)]))
-    seqs = nb['seq']#pd.Series(pd.concat([seqs, , ignore_index=True).unique())
+    seqs = nb['seq']
 
     print(f'{datetime.now():%d.%m.%Y %H:%M:%S}', len(seqs), 'reads')
     name = os.path.basename(j).split('_not_barcoded_raw_qual_count.csv')[0]
