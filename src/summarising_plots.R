@@ -16,16 +16,6 @@ ref_folder <- 'ref/'
 fig_folder <- 'figures/'
 dir.create(fig_folder, showWarnings = FALSE)
 
-# ------------------------------------------------------------------ helpers
-# condition = first two chars (pd, pg, rd, rg, yd, yg), rep = last char
-parse_cond <- function(x){
-  tibble(
-    sample    = x,
-    condition = str_sub(x, 1, 2),
-    rep       = str_sub(x, -1, -1)
-  )
-}
-
 # ------------------------------------------------------------------ read
 sumtable <- read_csv(sum_folder %+% 'sumtable.csv', show_col_types = FALSE)
 
@@ -141,11 +131,19 @@ p_metrics <- ggplot(all_metrics, aes(x = metric, y = value, fill = metric)) +
   theme_bw(base_size = 14) +
   theme(
     plot.title = element_text(hjust = 0.5, face = 'bold'),
-    legend.position = 'none'
-  )
+
+    legend.position = 'none',
+    axis.text.x = element_text(size = 18),
+    axis.text.y=element_text(size = 18),
+    axis.title.y = element_blank()
+  )+
+  scale_x_discrete(labels=c('yield',
+                            'assigned /\nbarcoded_total',
+                            'repeat correlation\n(Spearman)'))
 
 ggsave(fig_folder %+% 'sumtable_metrics_box.svg', p_metrics,
-       width = 12, height = 5, dpi = 300)
+       width = 8, height = 5, dpi = 300)
+
 
 
 # ==============================================================================
@@ -195,13 +193,17 @@ orf_consensus <- jcounts_rep %>%
 
 p_orf_cons <- ggplot(orf_consensus, aes(x = n_detected, y = condition, fill = condition)) +
   geom_col(color = 'black', linewidth = 0.3, width = 0.7) +
-  geom_text(aes(label = n_detected), hjust = -0.2, size = 4) +
+
+  geom_text(aes(label = n_detected), hjust = -0.2, size = 6) +
+
   labs(x = 'ORFs detected (>= 2 of 3 reps)', y = NULL,
        title = 'Consensus detected ORFs') +
   theme_bw(base_size = 14) +
   theme(plot.title = element_text(hjust = 0.5, face = 'bold'),
-        legend.position = 'none')+
-  coord_cartesian(xlim=c(0,3700))
+        legend.position = 'none',
+        axis.text.y = element_text(size=18,color = 'black'),
+        axis.text.x = element_text(color='black'))+
+  coord_cartesian(xlim=c(0,3900))
 
 ggsave(fig_folder %+% 'jcounts_orf_consensus.svg', p_orf_cons,
        width = 10, height = 8, dpi = 300)
@@ -216,6 +218,8 @@ ggsave(fig_folder %+% 'jcounts_orf_detection.svg', p_orf,
 # ==============================================================================
 
 ypg<-read_tsv(ref_folder%+%'ypg16489.txt')[,3:4]
+
+jcounts<-jcounts_rep
 
 #reference NPVs
 
@@ -278,4 +282,32 @@ g%>%
 ggsave(fig_folder%+%'yph_cor.svg', height = 1080, width = 1920, units = 'px')
 
 
+
+aa_test<-g%>%
+  pivot_longer( - name, names_to = 'exp')%>%
+  group_by(name)%>%
+  mutate(average = mean(value, na.rm = T))%>%
+  pivot_wider(names_from = 'exp')%>%
+  ungroup()%>%full_join(ypg)%>%
+  mutate(across(!name & !yg, npvise))%>%
+  dplyr::select(name,average, yg)%>%
+  na.omit%>%
+  mutate(ref_group = ifelse(yg< -1,'low','high'))
+
+testres<-t.test(filter(aa_test, ref_group=='low')$average, filter(aa_test, ref_group=='high')$average)
+
+ggplot(aa_test, aes(x = ref_group, y = average, fill = ref_group)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.4, size = 1.5) +
+  scale_fill_manual(values = c('low' = '#E64B35', 'high' = '#4DBBD5')) +
+  scale_x_discrete(labels = c('low' = 'fitness < -1', 'high' = 'fitness > -1')) +
+  labs(x = NULL, y = 'log( average count ) on YPGly') +
+  theme_bw() +
+  theme(legend.position = 'none',
+        axis.text = element_text(size=18,color='black'))+
+  annotate('text', x = 1.5, y = max(aa_test$average, na.rm = TRUE) * 1.05,
+           label = paste0('Welch t-test, p = ', format.pval(testres$p.value, digits = 2)))
+
+
+ggsave(fig_folder%+%'yph_test.svg', height = 1080, width = 1920, units = 'px')
 
